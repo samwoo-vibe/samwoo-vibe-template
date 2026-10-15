@@ -71,6 +71,9 @@ winget install --id=astral-sh.uv -e
 로그인하도록 구현합니다. 별도 회원가입은 없으며 backend가 아래 IMAP 서버에 로그인을
 시도해 계정을 인증합니다.
 
+- 로그인 입력: 회사 메일 아이디(도메인 생략 가능) 또는 전체 회사 이메일 주소와 비밀번호
+- 기본 메일 도메인: `samwooeleco.com` — 아이디만 입력하면 backend가 자동으로 붙입니다.
+  아이디와 전체 이메일 주소로 로그인해도 같은 계정으로 처리합니다.
 - IMAP 서버: `play.samwooeleco.com`
 - 포트: `993`
 - 연결: SSL/TLS
