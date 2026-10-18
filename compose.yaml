@@ -38,6 +38,8 @@ services:
 
   backend:
     build: ./backend
+    # uvicorn이 PID 1이면 헬스체크 타임아웃으로 고아가 된 python을 거두지 못해 좀비가 쌓인다.
+    init: true
     user: "10001:10001"
     cap_drop:
       - ALL
