@@ -58,10 +58,12 @@ services:
           "CMD-SHELL",
           "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')\"",
         ]
-      interval: 30s
+      # Each probe starts a fresh Python (~0.3s CPU). During start_period Docker probes every 5s,
+      # so a 60s interval does not delay first-healthy detection on deploy.
+      interval: 60s
       timeout: 3s
-      retries: 5
-      start_period: 15s
+      retries: 3
+      start_period: 60s
     mem_limit: 1g
     cpus: "1.0"
     pids_limit: 256
