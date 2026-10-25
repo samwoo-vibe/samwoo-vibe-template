@@ -9,7 +9,7 @@ services:
     # empty/null value would be filled again from the project environment.
     environment:
       DATABASE_URL: "__NOT_AVAILABLE_IN_FRONTEND__"
-      APP_BASE_URL: ${APP_BASE_URL:?APP_BASE_URL must be configured in Coolify}
+      APP_BASE_URL: ${APP_BASE_URL:-}
     user: "101:101"
     cap_drop:
       - ALL
@@ -46,9 +46,12 @@ services:
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped
+    # Coolify 4.5는 `docker compose build` 때 빌드 시점 변수만으로 이 파일 전체를 해석한다.
+    # 런타임 전용 값(DATABASE_URL·APP_BASE_URL·비밀값)은 `${KEY:-}`로 두고, 비어 있으면 앱이
+    # 기동할 때 즉시 실패한다. `${KEY:?...}`는 빌드가 실패하고 `${KEY:-값}`은 프로비저너가 거부한다.
     environment:
-      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be configured in Coolify}
-      APP_BASE_URL: ${APP_BASE_URL:?APP_BASE_URL must be configured in Coolify}
+      DATABASE_URL: ${DATABASE_URL:-}
+      APP_BASE_URL: ${APP_BASE_URL:-}
       APP_ENV: ${APP_ENV:-dev}
     expose:
       - "8000"

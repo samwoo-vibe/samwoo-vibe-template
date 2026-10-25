@@ -1,4 +1,5 @@
 import importlib.util
+import os
 from pathlib import Path
 
 import pytest
@@ -65,7 +66,10 @@ def test_compose_fails_closed_and_hides_database_from_frontend() -> None:
 
     assert 'DATABASE_URL: "__NOT_AVAILABLE_IN_FRONTEND__"' in compose
     assert "${COOLIFY_RESOURCE_UUID:?COOLIFY_RESOURCE_UUID must be provided by Coolify}" in compose
-    assert compose.count("${APP_BASE_URL:?APP_BASE_URL must be configured in Coolify}") == 2
+    # Coolify 4.5 빌드: 런타임 값은 빈 기본값으로 두고 앱이 빈 값을 거부한다.
+    assert compose.count("${APP_BASE_URL:-}") == 2
+    assert "DATABASE_URL: ${DATABASE_URL:-}" in compose
+    assert "${DATABASE_URL:?" not in compose and "${APP_BASE_URL:?" not in compose
 
 
 def test_frontend_uses_a_supported_unprivileged_nginx_release() -> None:
@@ -257,3 +261,20 @@ def test_handoff_rejects_recursive_project_output() -> None:
 
     with pytest.raises(ValueError, match="_handoff"):
         exporter.validate_output_dir(ROOT, ROOT / "frontend" / "src" / "export")
+
+
+def test_backend_rejects_empty_database_url() -> None:
+    import subprocess
+    import sys
+
+    result = subprocess.run(
+        [sys.executable, "-c", "import app.db"],
+        cwd=ROOT / "backend",
+        env={**os.environ, "DATABASE_URL": "  "},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "DATABASE_URL must be configured" in result.stderr
