@@ -87,6 +87,10 @@ README는 사람을 위한 프로젝트 소개와 실행 안내다. 작업 규�
 - `container_name`을 지정하지 않는다. 무중단 교체 배포가 깨진다.
 - backend는 `--proxy-headers`로 기동한다. HTTPS 종단은 Traefik이고 컨테이너에는 평문이
   도달한다(R6-2). 쿠키를 쓰면 `Secure`를 켠다(R6-3).
+- 앱이 메신저 도구 창에서 열리도록 `frame-ancestors 'self' https://play-on.samwooeleco.com
+  https://mattermost-wpjh.srv1808091.hstgr.cloud`로 동일 출처와 회사 메신저(운영·개발)만
+  허용한다. `X-Frame-Options`를 다시 넣지 않는다. Nginx의 모든 응답과 오류에도 이 CSP와
+  기존 보안·캐시 헤더가 적용되도록 유지하고, `location`의 `add_header`로 상속을 끊지 않는다.
 - 설정이 없을 때 조용히 다른 저장소로 넘어가는 코드를 만들지 않는다(R4-4).
   `DATABASE_URL`·`APP_BASE_URL`·custom secret은 값이 없거나 비어 있으면 기동할 때 즉시
   실패해야 한다. Coolify 4.5는 빌드 단계에서 빌드 시점 변수만으로 compose 전체를 해석하므로

@@ -1,5 +1,6 @@
 import importlib.util
 import os
+import shlex
 from pathlib import Path
 
 import pytest
@@ -50,6 +51,42 @@ def test_nginx_prevents_stale_spa_shells_without_disabling_asset_cache() -> None
     assert '~^/api(?:/|$)    "no-store";' in nginx
     assert '~^/assets/       "public, max-age=31536000, immutable";' in nginx
     assert "add_header Cache-Control $cache_control always;" in nginx
+
+
+def test_nginx_allows_only_self_and_company_messenger_frames() -> None:
+    nginx = read("frontend/nginx.conf")
+    policy = (
+        "frame-ancestors 'self' https://play-on.samwooeleco.com "
+        "https://mattermost-wpjh.srv1808091.hstgr.cloud"
+    )
+
+    assert "x-frame-options" not in nginx.lower()
+    assert nginx.lower().count("content-security-policy") == 1
+    assert f'add_header Content-Security-Policy "{policy}" always;' in nginx
+
+
+def test_nginx_all_locations_inherit_server_headers() -> None:
+    # A single add_header in any child block drops ALL inherited headers,
+    # including CSP, cache policy and the other security headers.
+    tokens = shlex.shlex(read("frontend/nginx.conf"), posix=True, punctuation_chars="{};")
+    tokens.whitespace_split = True
+    scopes: list[list[str]] = []
+    directive: list[str] = []
+
+    for token in tokens:
+        if token == "{":
+            scopes.append(directive)
+            directive = []
+        elif token == "}":
+            scopes.pop()
+        elif token == ";":
+            if directive and directive[0] == "add_header":
+                assert scopes == [["server"]], "Keep all add_header directives at server scope"
+            directive = []
+        else:
+            directive.append(token)
+
+    assert not scopes
 
 
 def test_vite_matches_production_api_and_websocket_routing() -> None:
@@ -193,8 +230,10 @@ def test_frontend_does_not_depend_on_external_fonts() -> None:
 
     assert "fonts.googleapis.com" not in styles
     assert 'add_header X-Content-Type-Options "nosniff" always;' in nginx
-    assert 'add_header X-Frame-Options "DENY" always;' in nginx
     assert 'add_header Referrer-Policy "no-referrer" always;' in nginx
+    assert (
+        'add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;' in nginx
+    )
 
 
 def test_handoff_rejects_environment_and_private_key_files(tmp_path: Path) -> None:
