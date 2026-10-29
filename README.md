@@ -105,6 +105,14 @@ Coolify 배포용 `compose.yaml`에는 PostgreSQL 컨테이너가 없습니다. 
 PostgreSQL의 앱 전용 database·role과 `DATABASE_URL`을 프로비저너가
 생성·주입합니다.
 
+`APP_BASE_URL`에는 사용자가 실제 접속하는 앱의 공개 주소를 넣습니다. backend는 시작할 때
+이 값을 검사하며, 빈 값·설정 안내 문구·주소 경로나 쿼리가 붙은 값은 거부합니다.
+예시는 `https://app.example.invalid`이고, 로컬 개발은 `.env.example`의 주소를 사용합니다.
+검증한 주소는 `app.state.app_base_url`에서 읽을 수 있습니다. 인증을 구현할 때는 이 주소의
+origin을 기준으로 출처를 검사하며, 메신저 부모 주소를 앱 자신의 주소로 사용하지 않습니다.
+배포 후에는 health와 화면 표시뿐 아니라 로그인 제출 요청이 출처 검사에서 차단되지 않는지도
+브라우저와 허용된 메신저 삽입 환경에서 확인합니다.
+
 이 템플릿의 `compose.yaml`, `samwoo-service.yaml`, Dockerfile과 Nginx 설정은 사내
 Coolify 자동 배포 규약에 맞춰져 있습니다. 임의로 바꾸지 말고 자세한 기술 규칙은
 `AGENTS.md`를 따르세요.

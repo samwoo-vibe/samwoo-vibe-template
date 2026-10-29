@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 load_dotenv()
 
+from app.config import load_app_base_url
 from app.db import engine
 from app.models import Visit
 
@@ -15,6 +16,7 @@ app = FastAPI(
     # prefix for route matching and keeps it in redirects and generated docs.
     root_path="/api",
 )
+app.state.app_base_url = load_app_base_url()
 
 
 @app.get("/health")
