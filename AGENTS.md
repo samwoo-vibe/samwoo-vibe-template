@@ -86,11 +86,15 @@ README는 사람을 위한 프로젝트 소개와 실행 안내다. 작업 규�
   않는다 - DB는 프로비저너가 중앙 PostgreSQL에 만들어 주고 `DATABASE_URL`로 주입한다.
 - `container_name`을 지정하지 않는다. 무중단 교체 배포가 깨진다.
 - backend는 `--proxy-headers`로 기동한다. HTTPS 종단은 Traefik이고 컨테이너에는 평문이
-  도달한다(R6-2). 쿠키를 쓰면 `Secure`를 켠다(R6-3).
+  도달한다(R6-2). Nginx가 `Host`와 `X-Forwarded-Proto`를 넘기므로 운영 backend의
+  `request.url`은 `https://<앱 주소>`로 보인다. 쿠키를 쓰면 `Secure`를 켠다(R6-3). 세션 쿠키
+  속성은 아래 「기본 로그인 인증」의 메신저 iframe 규칙을 따른다.
 - 앱이 메신저 도구 창에서 열리도록 `frame-ancestors 'self' https://play-on.samwooeleco.com
   https://mattermost-wpjh.srv1808091.hstgr.cloud`로 동일 출처와 회사 메신저(운영·개발)만
   허용한다. `X-Frame-Options`를 다시 넣지 않는다. Nginx의 모든 응답과 오류에도 이 CSP와
   기존 보안·캐시 헤더가 적용되도록 유지하고, `location`의 `add_header`로 상속을 끊지 않는다.
+  이 설정은 화면을 띄울 뿐이며, 메신저 안에서 로그인이 유지되려면 세션 쿠키도
+  「기본 로그인 인증」 규칙을 따라야 한다.
 - 설정이 없을 때 조용히 다른 저장소로 넘어가는 코드를 만들지 않는다(R4-4).
   `DATABASE_URL`·`APP_BASE_URL`·custom secret은 값이 없거나 비어 있으면 기동할 때 즉시
   실패해야 한다. Coolify 4.5는 빌드 단계에서 빌드 시점 변수만으로 compose 전체를 해석하므로
@@ -184,8 +188,38 @@ README는 사람을 위한 프로젝트 소개와 실행 안내다. 작업 규�
   관계없이 종료하고, blocking IMAP 호출로 async event loop를 막지 않도록 threadpool
   등으로 격리한다.
 - 인증 성공 후에는 비밀번호가 들어 있지 않은 서버측 session 또는 안전한 token으로
-  로그인 상태를 유지한다. 쿠키를 사용하면 `HttpOnly`, `Secure`, 적절한 `SameSite`,
-  만료시간을 설정하고 로그아웃 시 무효화한다. 상태 변경 요청에는 CSRF 방어를 적용한다.
+  로그인 상태를 유지한다. session·token에는 만료시간을 두고 로그아웃 시 서버에서도
+  무효화한다.
+- 회사 메신저(`https://play-on.samwooeleco.com`)는 앱을 **다른 사이트의 iframe**(도구 창)으로
+  연다. 브라우저는 그 안에서 `SameSite=Lax`·`Strict` 쿠키를 저장하지도 보내지도 않으므로,
+  로그인은 성공한 것처럼 보이다가 다음 요청에서 오류 없이 로그아웃 상태로 돌아간다. 그래서
+  로그인 방식과 관계없이 로그인 상태를 쿠키로 유지하면 아래 규칙을 그대로 따른다.
+  - `APP_BASE_URL`이 `https://`(운영)이면 세션 쿠키는
+    `HttpOnly; Secure; SameSite=None; Partitioned`로 발급한다. 평문 `http://` 로컬 개발만
+    `HttpOnly; SameSite=Lax`를 쓴다. `Lax`·`Strict`로 바꾸거나 `Partitioned`를 빼지 않고,
+    `Domain`을 지정하지 않으며, `Max-Age` 만료시간을 둔다.
+  - 로그아웃·세션 만료·계정 변경으로 쿠키를 지울 때는 분할(`Partitioned`) 쿠키와 같은
+    이름의 예전 비분할 쿠키를 같은 응답에서 함께 만료시킨다. 하나만 지우면 남은 쿠키로
+    로그인이 유지된다.
+  - Python 3.13의 `http.cookies`와 현재 Starlette는 `Partitioned`를 만들지 못한다
+    (`set_cookie(partitioned=True)`는 3.13에서 오류). 그래서 Set-Cookie 헤더 문자열 끝에
+    직접 붙여야 한다. **로그인을 만들 때는 이 모듈을 쓴다: `backend/app/web_session.py`의
+    `set_session_cookie`·`clear_session_cookie`.** 세션 쿠키를 `response.set_cookie`·
+    `delete_cookie`로 직접 다루거나 같은 기능을 새로 만들지 않는다.
+- `SameSite=None` 쿠키는 다른 사이트에서 보낸 요청에도 실리므로 `Lax`가 해 주던 CSRF 방어가
+  없어진다. 대신 상태를 바꾸는 모든 요청(로그인·로그아웃을 포함한 POST·PUT·PATCH·DELETE)과
+  WebSocket 연결은 출처 검사를 통과해야 한다.
+  - `Origin`이 앱 자신의 origin(검증·정규화한 `app.state.app_base_url`)과 정확히 같을 때만
+    받는다. 메신저 origin은 허용하지 않는다. iframe 안의 앱이 보내는 요청의 `Origin`은
+    메신저가 아니라 앱 자신이기 때문이다. 같은 서버의 다른 앱(`*.srv1808091.hstgr.cloud`)과
+    `Origin: null`도 거절한다.
+  - `Origin`이 없으면 `Sec-Fetch-Site: cross-site`인 요청만 거절한다.
+  - 비교 기준은 요청의 `Host`나 스킴이 아니라 `app.state.app_base_url`이다. 운영에서는 두 값이
+    같지만(위 「사내 배포 규약」), 로컬 proxy 설정 등에 따라 달라질 수 있다.
+  - 이 검사는 `app/main.py`에 연결된 `SameOriginWriteMiddleware`(`backend/app/web_session.py`)가
+    이미 모든 요청에 적용한다. 지우거나 우회하지 말고 허용 출처를 늘리지 않는다.
+  - 출처 검사는 GET·HEAD·OPTIONS에는 적용되지 않는다. 상태를 바꾸는 API를 GET으로 만들지
+    않는다.
 - 로그인 endpoint에는 사용자·IP 기준 rate limit과 반복 실패 지연을 적용한다. 계정 존재
   여부, 비밀번호 오류, IMAP 장애를 구분해 노출하지 않는 일반화된 오류 메시지를 사용한다.
   인증 실패 응답이나 로그에 이메일 주소 전체와 비밀번호를 남기지 않는다.
@@ -217,7 +251,8 @@ Pop-Location
 - 변경 범위에 맞게 최소한 backend health, frontend build, migration을 검증한다.
 - 로그인이나 공개 주소 설정을 변경하면 health·화면 표시만으로 완료 처리하지 않는다.
   브라우저와 허용된 메신저 삽입 환경에서 앱 자체 Origin의 로그인 제출이 출처 검사에
-  차단되지 않는지 확인하고, 다른 Origin은 계속 거부되는지 검증한다.
+  차단되지 않는지 확인하고, 다른 Origin은 계속 거부되는지 검증한다. 메신저 도구 창 안에서
+  로그인한 뒤 새로고침하거나 다른 화면으로 이동해도 로그인이 유지되는지도 확인한다.
 - 실패한 검증을 숨기지 말고 원인과 미검증 항목을 보고한다.
 - 관련 없는 파일을 정리하거나 사용자의 변경을 덮어쓰지 않는다.
 
@@ -283,6 +318,9 @@ uv run --frozen --project backend python scripts/export_handoff.py --project-nam
   비밀번호 비저장·로그 마스킹·rate limit·session 보안 테스트가 통과함
 - 사용자가 다른 인증 방식을 명시했다면 IMAP 로그인을 추가하지 않고 요청한 방식의
   로그인·인가 테스트가 통과함
+- 로그인이 있다면 세션 쿠키가 `backend/app/web_session.py`로 발급·삭제되고, 운영(HTTPS)
+  `HttpOnly; Secure; SameSite=None; Partitioned` 속성, 로그아웃 때 쿠키 2개(분할·비분할) 만료,
+  앱 자신 외 출처(메신저 포함)의 로그인·로그아웃·쓰기 요청 거절을 확인하는 테스트가 통과함
 - 별도 디자인 요구가 없다면 SAMWOO UI Standard의 토큰·브랜드 자산·공통 컴포넌트와
   접근성·반응형 기준이 적용되고, 갤러리용 예시 콘텐츠는 남아 있지 않음
 - 사용자가 다른 디자인이나 기존 UI 유지를 명시했다면 SAMWOO UI Standard를 강제로

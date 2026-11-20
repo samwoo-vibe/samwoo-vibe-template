@@ -90,6 +90,24 @@ winget install --id=astral-sh.uv -e
 자체 로그인, SSO, OAuth 등 다른 로그인 방식을 요청한 프로젝트에는 위 IMAP 방식을
 추가하지 않고 요청한 인증 방식만 적용합니다.
 
+### 메신저 도구 창 안에서의 로그인
+
+회사 메신저(`https://play-on.samwooeleco.com`)는 앱을 다른 사이트의 iframe(도구 창)으로
+엽니다. 브라우저는 그 안에서 `SameSite=Lax`·`Strict` 쿠키를 저장하지도 보내지도 않아,
+로그인한 직후 오류 없이 다시 로그아웃 상태가 됩니다. 그래서 로그인 방식과 관계없이 세션
+쿠키는 다음과 같이 다룹니다.
+
+- 운영(HTTPS): `HttpOnly; Secure; SameSite=None; Partitioned`
+- 평문 HTTP 로컬 개발: `HttpOnly; SameSite=Lax`
+- 로그아웃·세션 만료: 분할 쿠키와 같은 이름의 예전 비분할 쿠키를 함께 만료
+- `SameSite=None`에는 CSRF 방어가 없으므로, 로그인·로그아웃을 포함한 쓰기 요청은
+  `Origin`이 앱 자신의 주소(`APP_BASE_URL`)일 때만 받습니다. 메신저 주소도 거절합니다.
+  `Origin`이 없으면 `Sec-Fetch-Site: cross-site`인 요청만 거절합니다.
+
+이 처리는 `backend/app/web_session.py`에 들어 있습니다. 출처 검사는 이미 모든 요청에
+연결되어 있고, 로그인을 만들 때는 이 모듈의 `set_session_cookie`·`clear_session_cookie`를
+씁니다. 자세한 규칙은 `AGENTS.md`의 「기본 로그인 인증」을 따릅니다.
+
 ## 배포
 
 배포를 원할 때만 다음 명령으로 필요한 소스코드와 배포 설정을 압축합니다.
@@ -110,10 +128,11 @@ PostgreSQL의 앱 전용 database·role과 `DATABASE_URL`을 프로비저너가
 `APP_BASE_URL`에는 사용자가 실제 접속하는 앱의 공개 주소를 넣습니다. backend는 시작할 때
 이 값을 검사하며, 빈 값·설정 안내 문구·주소 경로나 쿼리가 붙은 값은 거부합니다.
 예시는 `https://app.example.invalid`이고, 로컬 개발은 `.env.example`의 주소를 사용합니다.
-검증한 주소는 `app.state.app_base_url`에서 읽을 수 있습니다. 인증을 구현할 때는 이 주소의
-origin을 기준으로 출처를 검사하며, 메신저 부모 주소를 앱 자신의 주소로 사용하지 않습니다.
-배포 후에는 health와 화면 표시뿐 아니라 로그인 제출 요청이 출처 검사에서 차단되지 않는지도
-브라우저와 허용된 메신저 삽입 환경에서 확인합니다.
+검증한 주소는 `app.state.app_base_url`에서 읽을 수 있습니다. backend는 이 주소의 origin을
+기준으로 쓰기 요청의 출처를 검사하며(`backend/app/web_session.py`), 메신저 부모 주소를 앱
+자신의 주소로 사용하지 않습니다. 배포 후에는 health와 화면 표시뿐 아니라 로그인 제출 요청이
+출처 검사에서 차단되지 않는지, 메신저 도구 창 안에서 로그인한 뒤 새로고침해도 로그인이
+유지되는지 브라우저와 허용된 메신저 삽입 환경에서 확인합니다.
 
 이 템플릿의 `compose.yaml`, `samwoo-service.yaml`, Dockerfile과 Nginx 설정은 사내
 Coolify 자동 배포 규약에 맞춰져 있습니다. 임의로 바꾸지 말고 자세한 기술 규칙은
