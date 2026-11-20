@@ -27,6 +27,8 @@ def test_nginx_preserves_api_proxy_contract() -> None:
     assert "location ~ ^/api(?:/|$)" in nginx
     assert "proxy_pass http://backend:8000;" in nginx
     assert "proxy_pass http://backend:8000/;" not in nginx
+    # backend가 공개 주소(https://<앱 주소>)를 그대로 보도록 Host와 원래 스킴을 넘긴다.
+    assert "proxy_set_header Host $http_host;" in nginx
     assert "proxy_set_header X-Forwarded-Proto $public_scheme;" in nginx
     assert "proxy_set_header X-Forwarded-For $remote_addr;" in nginx
     assert "$proxy_add_x_forwarded_for" not in nginx
@@ -212,6 +214,37 @@ def test_backend_bounds_concurrent_connections() -> None:
 
     assert "ENTRYPOINT []" in dockerfile
     assert "--limit-concurrency 100" in dockerfile
+
+
+def test_backend_trusts_forwarded_scheme_from_frontend_proxy() -> None:
+    dockerfile = read("backend/Dockerfile")
+
+    # frontend Nginx 주소는 배포마다 바뀌므로 모든 peer를 믿고, Nginx가 전달 헤더를 덮어쓴다.
+    assert "--proxy-headers" in dockerfile
+    assert "--forwarded-allow-ips='*'" in dockerfile
+
+
+def test_messenger_iframe_login_contract_is_documented_and_wired() -> None:
+    readme = read("README.md")
+    agents = read("AGENTS.md")
+    main = read("backend/app/main.py")
+
+    for document in (readme, agents):
+        assert "HttpOnly; Secure; SameSite=None; Partitioned" in document
+        assert "HttpOnly; SameSite=Lax" in document
+        assert "backend/app/web_session.py" in document
+        assert "set_session_cookie" in document
+        assert "clear_session_cookie" in document
+        assert "Sec-Fetch-Site: cross-site" in document
+        assert "다른 사이트의 iframe" in document
+    assert "적절한 `SameSite`" not in agents
+    assert "로그인을 만들 때는 이 모듈을 쓴다" in agents
+    assert "예전 비분할 쿠키를 같은 응답에서 함께 만료" in agents
+    assert "메신저 origin은 허용하지 않는다" in agents
+    assert "상태를 바꾸는 API를 GET으로 만들지" in agents
+    assert (
+        "app.add_middleware(SameOriginWriteMiddleware, app_origin=app.state.app_base_url)" in main
+    )
 
 
 def test_postgresql_pool_fits_the_provisioned_role_limit() -> None:
