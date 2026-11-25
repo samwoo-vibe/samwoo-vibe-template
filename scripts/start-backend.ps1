@@ -1,4 +1,4 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 
 if (-not (Test-Path ".env")) {
     throw ".env가 없습니다. 먼저 .\scripts\setup.ps1을 실행하세요."
@@ -11,6 +11,10 @@ Get-Content ".env" | ForEach-Object {
 }
 
 Push-Location backend
-uv run alembic upgrade head
-uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-Pop-Location
+try {
+    uv run alembic upgrade head
+    uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+}
+finally {
+    Pop-Location
+}

@@ -28,32 +28,110 @@ SAMWOO UI Standard 대신 그 요청을 우선합니다.
 
 ## 새 서비스 만들기
 
+처음 쓰는 경우 아래 순서대로 하나씩 따라 하면 됩니다.
+
+### 1. 작업 폴더 준비
+
 1. 공개 템플릿을 내려받아 Windows PC의 새 로컬 작업 폴더에 풉니다.
 2. 원본 템플릿의 Git 이력이나 remote를 작업 폴더에 가져오지 않습니다.
-3. Node.js 22, PostgreSQL 17, uv를 준비합니다.
-4. PostgreSQL에 프로젝트 전용 로컬 DB와 role을 만듭니다.
-5. PowerShell에서 `.\scripts\setup.ps1`을 실행합니다.
-6. 생성된 `.env`의 `DATABASE_URL`을 로컬 DB 정보로 수정합니다.
-7. 백엔드와 프런트엔드를 실행하고 기능을 개발합니다.
-8. 배포가 필요하면 AI 코딩 도구에 배포용 인계 ZIP 생성을 요청합니다. 생성된 ZIP은
-   배포 담당자에게 전달합니다. 배포하지 않을 때는 ZIP을 만들 필요가 없습니다.
 
-uv가 없다면 PowerShell에서 다음 명령으로 설치합니다.
+### 2. 필요한 프로그램 설치
+
+Node.js 22, PostgreSQL 17, uv를 준비합니다.
+
+1. Node.js: <https://nodejs.org/en/download>에서 22 LTS를 내려받아 설치합니다.
+2. PostgreSQL 17: <https://www.enterprisedb.com/downloads/postgres-postgresql-downloads>에서
+   내려받아 설치합니다. 설치 중에 정하는 `postgres` 계정 비밀번호는 3단계에서 쓰니 기억해
+   둡니다. 설치 마지막에 나오는 Stack Builder는 실행하지 않고 건너뜁니다.
+3. `psql` 명령을 쓸 수 있도록 Path에 PostgreSQL 폴더를 추가합니다. 시스템 → 고급 시스템
+   설정 → 환경 변수에서 Path를 선택하고 [편집] → [새로 만들기]를 눌러
+   `C:\Program Files\PostgreSQL\17\bin`을 추가합니다.
+4. uv: PowerShell에서 다음 명령을 실행합니다.
+
+   ```powershell
+   winget install --id=astral-sh.uv -e
+   ```
+
+5. Path가 바뀌었으므로 열려 있던 PowerShell과 VS Code를 모두 닫았다가 다시 엽니다.
+
+### 3. 로컬 DB 만들기
+
+PostgreSQL에 프로젝트 전용 로컬 DB와 role을 만듭니다. PowerShell에서 다음 명령을 실행하고,
+PostgreSQL을 설치할 때 정한 `postgres` 비밀번호를 입력합니다.
 
 ```powershell
-winget install --id=astral-sh.uv -e
+psql -U postgres
+```
+
+`postgres=#`가 보이면 아래 두 줄을 입력합니다. `<로컬 비밀번호>`와 `<DB 이름>`은 직접 정한
+값으로 바꾸고, 꺾쇠(`< >`)는 지웁니다.
+
+```sql
+CREATE ROLE app_role LOGIN PASSWORD '<로컬 비밀번호>';
+CREATE DATABASE <DB 이름> OWNER app_role;
+```
+
+- 로컬 비밀번호는 영문과 숫자만 쓰는 것을 권합니다. 특수문자가 들어가면 5단계의
+  `DATABASE_URL` 주소가 깨질 수 있습니다.
+- DB 이름은 영문 소문자로 시작하고 영문 소문자, 숫자, 밑줄(`_`)만 씁니다.
+- 다 만들었으면 `\q`를 입력해 빠져나옵니다.
+
+### 4. 설치 스크립트 실행
+
+작업 폴더(이 `README.md`가 있는 폴더)에서 PowerShell을 열고 다음 명령을 실행합니다.
+VS Code로 작업 폴더를 열었다면 VS Code 터미널에서 실행해도 됩니다.
+
+```powershell
+.\scripts\setup.ps1
+```
+
+`setup.ps1`이 `.env.example`을 복사해 `.env`를 자동으로 만들어 줍니다. `.env.example`은 배포용
+ZIP을 만들 때 꼭 필요한 파일이므로 지우거나 이름을 바꾸지 않습니다.
+
+“이 시스템에서 스크립트를 실행할 수 없으므로”라는 오류가 나오면, 같은 PowerShell 창에서
+다음 명령을 먼저 실행한 뒤 다시 시도합니다. 이 설정은 그 창에서만 적용되므로, 새 PowerShell
+창에서 같은 오류가 나오면 다시 실행합니다.
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass -Force
+```
+
+### 5. `.env`에 로컬 DB 정보 입력
+
+작업 폴더의 `.env`를 메모장이나 VS Code로 열고, `DATABASE_URL` 줄을 3단계에서 정한 값으로
+고칩니다.
+
+```text
+DATABASE_URL=postgresql+psycopg://app_role:<로컬 비밀번호>@localhost:5432/<DB 이름>
+```
+
+### 6. 실행하고 개발하기
+
+작업 폴더에서 PowerShell 창을 두 개 열고, 창마다 하나씩 실행합니다.
+
+```powershell
+# 첫 번째 창: 백엔드
+.\scripts\start-backend.ps1
 ```
 
 ```powershell
-.\scripts\start-backend.ps1
+# 두 번째 창: 프런트엔드
 .\scripts\start-frontend.ps1
 ```
+
+브라우저에서 `http://127.0.0.1:5173`이 열리면 준비가 끝난 것입니다. 이제 기능을 개발합니다.
+끌 때는 각 PowerShell 창에서 `Ctrl+C`를 누릅니다.
 
 프런트엔드는 `http://127.0.0.1:5173`, 프런트엔드를 통해 접근하는 API는
 `http://127.0.0.1:5173/api`에서 실행됩니다. FastAPI 문서는
 `http://127.0.0.1:5173/api/docs`에서 확인합니다.
 로컬에서는 Vite가 React를 제공하고 `/api` 요청을 FastAPI로 전달하므로 Nginx를
 설치할 필요가 없습니다. Nginx는 서버 배포용 frontend 이미지 안에서만 실행됩니다.
+
+### 7. 배포(필요할 때만)
+
+배포가 필요하면 AI 코딩 도구에 배포용 인계 ZIP 생성을 요청합니다. 생성된 ZIP은
+배포 담당자에게 전달합니다. 배포하지 않을 때는 ZIP을 만들 필요가 없습니다.
 
 ## 실제 데이터 사용 금지
 
@@ -66,6 +144,10 @@ winget install --id=astral-sh.uv -e
 배포용 ZIP에도 포함되지 않습니다.
 
 ## 기본 로그인
+
+> **이 템플릿에는 아직 로그인 화면과 로그인 API가 없습니다.** 앱을 개발할 때 AI 코딩
+> 도구가 `AGENTS.md`의 「기본 로그인 인증」 규칙대로 회사 메일 로그인을 함께 만듭니다.
+> 만든 앱에 로그인이 빠져 있으면 AI 코딩 도구에 “회사 메일 로그인 붙여 줘”라고 요청하세요.
 
 별도의 로그인 방식을 요청하지 않으면, 이 템플릿으로 만드는 앱은 회사 메일 계정으로
 로그인하도록 구현합니다. 별도 회원가입은 없으며 backend가 아래 IMAP 서버에 로그인을
