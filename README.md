@@ -89,11 +89,11 @@ VS Code로 작업 폴더를 열었다면 VS Code 터미널에서 실행해도 �
 ZIP을 만들 때 꼭 필요한 파일이므로 지우거나 이름을 바꾸지 않습니다.
 
 “이 시스템에서 스크립트를 실행할 수 없으므로”라는 오류가 나오면, 같은 PowerShell 창에서
-다음 명령을 먼저 실행한 뒤 다시 시도합니다. 확인을 묻는 질문이 나오면 `Y`를 입력합니다.
-이 설정은 그 창에서만 적용되므로, 새 PowerShell 창에서 같은 오류가 나오면 다시 실행합니다.
+다음 명령을 먼저 실행한 뒤 다시 시도합니다. 이 설정은 그 창에서만 적용되므로, 새 PowerShell
+창에서 같은 오류가 나오면 다시 실행합니다.
 
 ```powershell
-Set-ExecutionPolicy -Scope Process Bypass
+Set-ExecutionPolicy -Scope Process Bypass -Force
 ```
 
 ### 5. `.env`에 로컬 DB 정보 입력
