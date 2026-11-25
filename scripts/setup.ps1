@@ -1,4 +1,4 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 
 if (-not (Test-Path ".env")) {
     Copy-Item ".env.example" ".env"
@@ -10,11 +10,19 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
 }
 
 Push-Location backend
-uv sync
-Pop-Location
+try {
+    uv sync
+}
+finally {
+    Pop-Location
+}
 Push-Location frontend
-npm ci
-Pop-Location
+try {
+    npm ci
+}
+finally {
+    Pop-Location
+}
 
 Write-Host "설치 완료"
 Write-Host "Backend: .\\scripts\\start-backend.ps1"
